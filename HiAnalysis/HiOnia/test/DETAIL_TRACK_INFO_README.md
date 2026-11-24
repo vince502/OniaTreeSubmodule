@@ -56,14 +56,14 @@ All counted tracks must satisfy:
 
 ```python
 process.hionia.useDetailEventInfo = cms.bool(True)
-process.hionia.useGeTracks = cms.untracked.bool(True)  # Required!
+process.hionia.useGeTracks = cms.untracked.bool(True)  # Automatically forced when useDetailEventInfo=True
 process.hionia.ptTrkDetail = cms.vdouble(0.5, 1.0, 1.5, 2.0, 3.0)
 process.hionia.absEtaTrkDetail = cms.vdouble(0.5, 1.0, 1.5, 2.0, 2.4)
 ```
 
 ## Important Notes
 
-1. **Requires `useGeTracks = True`**: The general track collection must be enabled
+1. **Automatically enables `useGeTracks = True`**: Enabling `useDetailEventInfo` forces reading `srcTracks`
 2. **Event-level information**: These are global event multiplicities, not associated with specific dimuons
 3. **Inclusive counting**: A track passing |eta| < 2.4 and pt > 0.5 will be counted in ALL applicable bins
 4. **Branch naming**: Decimal points in values are replaced with 'p' (e.g., 1.5 → 1p5)
