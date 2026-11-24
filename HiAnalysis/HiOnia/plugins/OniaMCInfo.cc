@@ -81,7 +81,9 @@ void HiOniaAnalyzer::fillGenInfo() {
          ++it) {
       const reco::GenParticle* gen = &(*it);
 
-      if (abs(gen->pdgId()) == _oniaPDG && (gen->status() == 2 || (abs(gen->pdgId()) == 23 && gen->status() == 62)) &&
+      const int absPdgId = std::abs(gen->pdgId());
+      const bool isRequestedOnia = std::find(_oniaPDGs.begin(), _oniaPDGs.end(), absPdgId) != _oniaPDGs.end();
+      if (isRequestedOnia && (gen->status() == 2 || (absPdgId == 23 && gen->status() == 62)) &&
           gen->numberOfDaughters() >= 2) {
         reco::GenParticleRef genMuon1 = findDaughterRef(gen->daughterRef(0), gen->pdgId());
         reco::GenParticleRef genMuon2 = findDaughterRef(gen->daughterRef(1), gen->pdgId());
@@ -90,13 +92,15 @@ void HiOniaAnalyzer::fillGenInfo() {
             (genMuon2->status() == 1)) {
           Gen_QQ_Bc_idx[Gen_QQ_size] = -1;
           Gen_QQ_type[Gen_QQ_size] = _isPromptMC ? 0 : 1;  // prompt: 0, non-prompt: 1
+          Gen_QQ_pdgId[Gen_QQ_size] = gen->pdgId();
           std::pair<std::vector<reco::GenParticleRef>, std::pair<float, float> > MCinfo = findGenMCInfo(gen);
           Gen_QQ_ctau[Gen_QQ_size] = 10.0 * MCinfo.second.first;
           Gen_QQ_ctau3D[Gen_QQ_size] = 10.0 * MCinfo.second.second;
 
           if (_genealogyInfo) {
             _Gen_QQ_MomAndTrkBro[Gen_QQ_size] = MCinfo.first;
-            Gen_QQ_momId[Gen_QQ_size] = _Gen_QQ_MomAndTrkBro[Gen_QQ_size][0]->pdgId();
+            Gen_QQ_momId[Gen_QQ_size] =
+                _Gen_QQ_MomAndTrkBro[Gen_QQ_size].empty() ? 0 : _Gen_QQ_MomAndTrkBro[Gen_QQ_size][0]->pdgId();
           }
 
           TLorentzVector vJpsi = lorentzMomentum(gen->p4());
