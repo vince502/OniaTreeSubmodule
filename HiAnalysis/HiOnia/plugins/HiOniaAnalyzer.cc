@@ -105,6 +105,10 @@ HiOniaAnalyzer::HiOniaAnalyzer(const edm::ParameterSet& iConfig)
   if (_oniaPDGs.empty()) {
     _oniaPDGs.push_back(_oniaPDG);
   }
+  if (_useDetailEventInfo && !_useGeTracks) {
+    cout << "Have to read tracks if useDetailEventInfo==true. _useGeTracks = true is forced." << endl;
+    _useGeTracks = true;
+  }
   if (_storeTwoParticleFlowQVec && !_useGeTracks) {
     cout << "Have to read tracks if storeTwoParticleFlowQVec==true. _useGeTracks = true is forced." << endl;
     _useGeTracks = true;
@@ -454,8 +458,17 @@ void HiOniaAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iS
     }
   }
 
-  if (!_onlySingleMuons)
+  if (!_onlySingleMuons) {
+    const math::XYZPoint evtRefVtx = RefVtx;
+    const float evtRefVtx_xError = RefVtx_xError;
+    const float evtRefVtx_yError = RefVtx_yError;
+    const float evtRefVtx_zError = RefVtx_zError;
     this->fillRecoHistos();
+    RefVtx = evtRefVtx;
+    RefVtx_xError = evtRefVtx_xError;
+    RefVtx_yError = evtRefVtx_yError;
+    RefVtx_zError = evtRefVtx_zError;
+  }
 
   //for pp, record Ntracks as well
   if (!(_isHI) && !(_isPA)) {
@@ -472,35 +485,38 @@ void HiOniaAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iS
     }
   }
 
-  if (_useDetailEventInfo && _useGeTracks && collTracks.isValid()) {
-    const double maxAbsEta =
-        _absEtaTrkDetail.empty() ? 2.4 : *std::max_element(_absEtaTrkDetail.begin(), _absEtaTrkDetail.end());
-    const double minPt =
-        _ptTrkDetail.empty() ? 0.3 : *std::min_element(_ptTrkDetail.begin(), _ptTrkDetail.end());
+  if (_useDetailEventInfo && _useGeTracks) {
+    iEvent.getByToken(_recoTracksToken, collTracks);
+    if (collTracks.isValid()) {
+      const double maxAbsEta =
+          _absEtaTrkDetail.empty() ? 2.4 : *std::max_element(_absEtaTrkDetail.begin(), _absEtaTrkDetail.end());
+      const double minPt =
+          _ptTrkDetail.empty() ? 0.3 : *std::min_element(_ptTrkDetail.begin(), _ptTrkDetail.end());
 
-    for (const auto& track : *collTracks) {
-      if (!track.qualityByName("highPurity") || track.pt() <= 0. || track.dzError() <= 0. ||
-          track.dxyError() <= 0. || std::abs(track.dz(RefVtx) / track.dzError()) >= 3.0 ||
-          std::abs(track.dxy(RefVtx) / track.dxyError()) >= 3.0 || std::abs(track.ptError() / track.pt()) > 0.1)
-        continue;
-
-      const double trackAbsEta = std::abs(track.eta());
-      if (trackAbsEta < maxAbsEta && track.pt() > minPt && Reco_trk2_size < Max_trk_size) {
-        Reco_trk2_pt.push_back(track.pt());
-        Reco_trk2_eta.push_back(track.eta());
-        Reco_trk2_phi.push_back(track.phi());
-        ++Reco_trk2_size;
-      }
-
-      for (double absEtaMax : _absEtaTrkDetail) {
-        if (trackAbsEta >= absEtaMax)
+      for (const auto& track : *collTracks) {
+        if (!track.qualityByName("highPurity") || track.pt() <= 0. || track.dzError() <= 0. ||
+            track.dxyError() <= 0. || std::abs(track.dz(RefVtx) / track.dzError()) >= 3.0 ||
+            std::abs(track.dxy(RefVtx) / track.dxyError()) >= 3.0 || std::abs(track.ptError() / track.pt()) > 0.1)
           continue;
-        for (double ptMin : _ptTrkDetail) {
-          if (track.pt() < ptMin)
+
+        const double trackAbsEta = std::abs(track.eta());
+        if (trackAbsEta < maxAbsEta && track.pt() > minPt && Reco_trk2_size < Max_trk_size) {
+          Reco_trk2_pt.push_back(track.pt());
+          Reco_trk2_eta.push_back(track.eta());
+          Reco_trk2_phi.push_back(track.phi());
+          ++Reco_trk2_size;
+        }
+
+        for (double absEtaMax : _absEtaTrkDetail) {
+          if (trackAbsEta >= absEtaMax)
             continue;
-          std::string branchName = Form("Ntrack_abseta%.1f_pt%.1f", absEtaMax, ptMin);
-          std::replace(branchName.begin(), branchName.end(), '.', 'p');
-          ++Ntrack_details[branchName];
+          for (double ptMin : _ptTrkDetail) {
+            if (track.pt() < ptMin)
+              continue;
+            std::string branchName = Form("Ntrack_abseta%.1f_pt%.1f", absEtaMax, ptMin);
+            std::replace(branchName.begin(), branchName.end(), '.', 'p');
+            ++Ntrack_details[branchName];
+          }
         }
       }
     }
@@ -609,6 +625,7 @@ void HiOniaAnalyzer::fillTreeMuon(const pat::Muon* muon, int iType, ULong64_t tr
     mapMuonMomToIndex_[FloatToIntkey(vMuon.Pt())] = Reco_mu_size;
 
     Reco_mu_trig[Reco_mu_size] = trigBits;
+    Reco_mu_SelectionType[Reco_mu_size] = muonIDmask(muon);
     Reco_mu_MVAIso[Reco_mu_size] = muon->hasUserFloat("hiMVAIso") ? muon->userFloat("hiMVAIso") : -99.f;
     Reco_mu_MVAIsoWP95[Reco_mu_size] = muon->hasUserInt("hiMVAIsoWP95") ? muon->userInt("hiMVAIsoWP95") : -1;
     Reco_mu_MVAIsoWP90[Reco_mu_size] = muon->hasUserInt("hiMVAIsoWP90") ? muon->userInt("hiMVAIsoWP90") : -1;
@@ -619,7 +636,6 @@ void HiOniaAnalyzer::fillTreeMuon(const pat::Muon* muon, int iType, ULong64_t tr
     reco::TrackRef bestTrack = muon->muonBestTrack();
 
     if (!_theMinimumFlag) {
-      Reco_mu_SelectionType[Reco_mu_size] = 0;
       Reco_mu_StationsMatched[Reco_mu_size] = -1;
       Reco_mu_candType[Reco_mu_size] = -1;
       Reco_mu_localChi2[Reco_mu_size] = -999.f;
@@ -640,7 +656,6 @@ void HiOniaAnalyzer::fillTreeMuon(const pat::Muon* muon, int iType, ULong64_t tr
 
       Reco_mu_InTightAcc[Reco_mu_size] = isMuonInAccept(muon, "GLB");
       Reco_mu_InLooseAcc[Reco_mu_size] = isMuonInAccept(muon, "GLBSOFT");
-      Reco_mu_SelectionType[Reco_mu_size] = muonIDmask(muon);
       Reco_mu_StationsMatched[Reco_mu_size] = muon->numberOfMatchedStations();
       Reco_mu_isPF[Reco_mu_size] = muon->isPFMuon();
       Reco_mu_isPFIsoVeryLoose[Reco_mu_size] = muon->passed(reco::Muon::PFIsoVeryLoose);
@@ -969,6 +984,7 @@ void HiOniaAnalyzer::fillTreeJpsi(int count) {
                   track->pt() > _twoParticleFlowQVecPtMin && track->pt() <= _twoParticleFlowQVecPtMax &&
                   std::abs(track->eta()) <= _twoParticleFlowQVecAbsEtaMax && !isMuonTrack) {
                 float trackWeight = 1.f;
+                bool validTwoParticleWeight = true;
                 if (!_twoParticleFlowQVecCorrFile.empty()) {
                   const int bin = _twoParticleFlowQVecEffHisto->FindBin(
                       track->eta(), track->pt(), _twoParticleFlowQVecOccupancy);
@@ -977,16 +993,21 @@ void HiOniaAnalyzer::fillTreeJpsi(int count) {
                   const float secondary = _twoParticleFlowQVecSecHisto->GetBinContent(bin);
                   const float multiple = _twoParticleFlowQVecMulHisto->GetBinContent(bin);
                   const float denominator = efficiency * (1.f + multiple);
-                  if (!std::isfinite(denominator) || denominator <= 0.f)
-                    continue;
-                  trackWeight = ((1.f - fake) * (1.f - secondary)) / denominator;
-                  if (!std::isfinite(trackWeight) || trackWeight <= 0.f)
-                    continue;
+                  if (!std::isfinite(denominator) || denominator <= 0.f) {
+                    validTwoParticleWeight = false;
+                  } else {
+                    trackWeight = ((1.f - fake) * (1.f - secondary)) / denominator;
+                    if (!std::isfinite(trackWeight) || trackWeight <= 0.f) {
+                      validTwoParticleWeight = false;
+                    }
+                  }
                 }
-                ++Reco_QQ_2pc_nTrk[Reco_QQ_size];
-                Reco_QQ_2pc_sumW[Reco_QQ_size] += trackWeight;
-                Reco_QQ_2pc_q2x[Reco_QQ_size] += trackWeight * std::cos(2.0 * track->phi());
-                Reco_QQ_2pc_q2y[Reco_QQ_size] += trackWeight * std::sin(2.0 * track->phi());
+                if (validTwoParticleWeight) {
+                  ++Reco_QQ_2pc_nTrk[Reco_QQ_size];
+                  Reco_QQ_2pc_sumW[Reco_QQ_size] += trackWeight;
+                  Reco_QQ_2pc_q2x[Reco_QQ_size] += trackWeight * std::cos(2.0 * track->phi());
+                  Reco_QQ_2pc_q2y[Reco_QQ_size] += trackWeight * std::sin(2.0 * track->phi());
+                }
               }
 
               Reco_QQ_NtrkPt02[Reco_QQ_size]++;
@@ -1963,19 +1984,22 @@ void HiOniaAnalyzer::beginJob() {
   if (_storeTwoParticleFlowQVec && !_twoParticleFlowQVecCorrFile.empty()) {
     edm::FileInPath correctionPath(_twoParticleFlowQVecCorrFile);
     TFile correctionFile(correctionPath.fullPath().c_str(), "READ");
-    _twoParticleFlowQVecEffHisto = static_cast<TH3F*>(correctionFile.Get("hEff_3D"));
-    _twoParticleFlowQVecFakeHisto = static_cast<TH3F*>(correctionFile.Get("hFak_3D"));
-    _twoParticleFlowQVecSecHisto = static_cast<TH3F*>(correctionFile.Get("hSec_3D"));
-    _twoParticleFlowQVecMulHisto = static_cast<TH3F*>(correctionFile.Get("hMul_3D"));
-    if (!_twoParticleFlowQVecEffHisto || !_twoParticleFlowQVecFakeHisto || !_twoParticleFlowQVecSecHisto ||
-        !_twoParticleFlowQVecMulHisto) {
+    auto* effHisto = dynamic_cast<TH3F*>(correctionFile.Get("hEff_3D"));
+    auto* fakeHisto = dynamic_cast<TH3F*>(correctionFile.Get("hFak_3D"));
+    auto* secHisto = dynamic_cast<TH3F*>(correctionFile.Get("hSec_3D"));
+    auto* mulHisto = dynamic_cast<TH3F*>(correctionFile.Get("hMul_3D"));
+    if (!effHisto || !fakeHisto || !secHisto || !mulHisto) {
       throw cms::Exception("HiOniaAnalyzer")
           << "Missing 2PC correction histogram in " << correctionPath.fullPath();
     }
-    _twoParticleFlowQVecEffHisto->SetDirectory(nullptr);
-    _twoParticleFlowQVecFakeHisto->SetDirectory(nullptr);
-    _twoParticleFlowQVecSecHisto->SetDirectory(nullptr);
-    _twoParticleFlowQVecMulHisto->SetDirectory(nullptr);
+    effHisto->SetDirectory(nullptr);
+    fakeHisto->SetDirectory(nullptr);
+    secHisto->SetDirectory(nullptr);
+    mulHisto->SetDirectory(nullptr);
+    _twoParticleFlowQVecEffHisto = effHisto;
+    _twoParticleFlowQVecFakeHisto = fakeHisto;
+    _twoParticleFlowQVecSecHisto = secHisto;
+    _twoParticleFlowQVecMulHisto = mulHisto;
   }
 
   // book histos
