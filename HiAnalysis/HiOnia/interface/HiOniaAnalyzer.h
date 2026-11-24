@@ -20,8 +20,13 @@
 #include <sstream>
 #include <vector>
 #include <utility>
+#include <algorithm>
+#include <cmath>
+#include <map>
 
 #include <TTree.h>
+#include <TFile.h>
+#include <TH3.h>
 #include <TLorentzVector.h>
 #include <TVector2.h>
 #include <TClonesArray.h>
@@ -35,9 +40,12 @@
 #include "FWCore/Framework/interface/MakerMacros.h"
 
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/Utilities/interface/Exception.h"
+#include "FWCore/Utilities/interface/FileInPath.h"
 
 #include "DataFormats/PatCandidates/interface/Muon.h"
 #include "DataFormats/PatCandidates/interface/CompositeCandidate.h"
+#include "DataFormats/PatCandidates/interface/MET.h"
 #include "DataFormats/Candidate/interface/CompositeCandidate.h"
 #include <DataFormats/RecoCandidate/interface/RecoChargedCandidate.h>
 #include "DataFormats/Common/interface/TriggerResults.h"
@@ -149,6 +157,7 @@ private:
   void fillTreeDimuTrk(int count);
 
   void checkTriggers(const pat::CompositeCandidate* aJpsiCand);
+  bool hasTriggerFilterMatch(const pat::Muon* muon, const std::string& filterLabel) const;
   void hltReport(const edm::Event& iEvent, const edm::EventSetup& iSetup);
 
   long int FloatToIntkey(float v);
@@ -178,6 +187,11 @@ private:
   std::vector<std::string> theSign;
   std::map<std::string, std::string> triggerNameMap;
   std::map<std::string, std::string> filterNameMap;
+  std::vector<std::string> triggerBitNames;
+  std::vector<std::string> triggerFullNames;
+  std::vector<std::string> triggerFilterNames;
+  std::vector<int> triggerBitIndices;
+  std::vector<int> triggerHLTIndices;
 
   HLTConfigProvider hltConfig;
   bool hltConfigInit;
@@ -192,23 +206,23 @@ private:
   // TFile* fOut;
 
   // TTree
-  TTree* myTree;
+  TTree* myTree = nullptr;
 
-  TClonesArray* Reco_mu_4mom;
-  TClonesArray* Reco_QQ_4mom;
-  TClonesArray* Reco_QQ_mumi_4mom;
-  TClonesArray* Reco_QQ_mupl_4mom;
-  TClonesArray* Reco_3mu_4mom;
-  TClonesArray* Reco_QQ_vtx;
-  TClonesArray* Reco_3mu_vtx;
-  TClonesArray* Reco_trk_4mom;
-  TClonesArray* Reco_trk_vtx;
-  TClonesArray* Gen_Bc_4mom;
-  TClonesArray* Gen_Bc_nuW_4mom;
-  TClonesArray* Gen_3mu_4mom;
+  TClonesArray* Reco_mu_4mom = nullptr;
+  TClonesArray* Reco_QQ_4mom = nullptr;
+  TClonesArray* Reco_QQ_mumi_4mom = nullptr;
+  TClonesArray* Reco_QQ_mupl_4mom = nullptr;
+  TClonesArray* Reco_3mu_4mom = nullptr;
+  TClonesArray* Reco_QQ_vtx = nullptr;
+  TClonesArray* Reco_3mu_vtx = nullptr;
+  TClonesArray* Reco_trk_4mom = nullptr;
+  TClonesArray* Reco_trk_vtx = nullptr;
+  TClonesArray* Gen_Bc_4mom = nullptr;
+  TClonesArray* Gen_Bc_nuW_4mom = nullptr;
+  TClonesArray* Gen_3mu_4mom = nullptr;
 
-  TClonesArray* Gen_mu_4mom;
-  TClonesArray* Gen_QQ_4mom;
+  TClonesArray* Gen_mu_4mom = nullptr;
+  TClonesArray* Gen_QQ_4mom = nullptr;
 
   std::vector<float> Reco_QQ_vtx_xpos;
   std::vector<float> Reco_QQ_vtx_ypos;
@@ -282,6 +296,7 @@ private:
 
   Short_t Gen_QQ_size;               // number of generated Onia
   Short_t Gen_QQ_type[Max_QQ_size];  // Onia type: prompt, non-prompt, unmatched
+  int Gen_QQ_pdgId[Max_QQ_size];     // generated resonance identity
   float Gen_QQ_ctau[Max_QQ_size];    // ctau: flight time
   float Gen_QQ_ctau3D[Max_QQ_size];  // ctau3D: 3D flight time
   int Gen_QQ_momId
@@ -358,6 +373,7 @@ private:
                              1 = +/+
                              2 = -/- 
                           */
+  Short_t Reco_QQ_collIdx[Max_QQ_size];   // Original index in input onia2MuMuPAT collection
   Short_t Reco_QQ_mupl_idx[Max_QQ_size];  // index of the muon plus from Jpsi, in the full list of muons
   Short_t Reco_QQ_mumi_idx[Max_QQ_size];  // index of the muon minus from Jpsi, in the full list of muons
   Short_t Reco_QQ_whichGen
@@ -382,6 +398,10 @@ private:
   int Reco_QQ_NtrkDeltaR03[Max_QQ_size];
   int Reco_QQ_NtrkDeltaR04[Max_QQ_size];
   int Reco_QQ_NtrkDeltaR05[Max_QQ_size];
+  int Reco_QQ_2pc_nTrk[Max_QQ_size];
+  float Reco_QQ_2pc_sumW[Max_QQ_size];
+  float Reco_QQ_2pc_q2x[Max_QQ_size];
+  float Reco_QQ_2pc_q2y[Max_QQ_size];
 
   float Reco_QQ_mupl_dxy[Max_QQ_size];  // dxy for plus inner track muons
   float Reco_QQ_mumi_dxy[Max_QQ_size];  // dxy for minus inner track muons
@@ -403,6 +423,11 @@ private:
   Short_t Reco_mu_candType
       [Max_mu_size];  // candidate type of muon. 0 (or not present): muon collection, 1: packedPFCandidate, 2: lostTrack collection
   bool Reco_mu_isPF[Max_mu_size];  // Vector of isParticleFlow muon
+  bool Reco_mu_isPFIsoVeryLoose[Max_mu_size];
+  bool Reco_mu_isPFIsoLoose[Max_mu_size];
+  bool Reco_mu_isPFIsoMedium[Max_mu_size];
+  bool Reco_mu_isPFIsoTight[Max_mu_size];
+  bool Reco_mu_isPFIsoVeryTight[Max_mu_size];
   bool Reco_mu_isTracker[Max_mu_size];
   bool Reco_mu_isGlobal[Max_mu_size];
   bool Reco_mu_isSoftCutBased[Max_mu_size];
@@ -412,6 +437,11 @@ private:
   bool Reco_mu_isTightCutBased[Max_mu_size];
   bool Reco_mu_InTightAcc[Max_mu_size];  // Is in the tight acceptance for global muons
   bool Reco_mu_InLooseAcc[Max_mu_size];  // Is in the loose acceptance for global muons
+  float Reco_mu_MVAIso[Max_mu_size];
+  Short_t Reco_mu_MVAIsoWP95[Max_mu_size];
+  Short_t Reco_mu_MVAIsoWP90[Max_mu_size];
+  Short_t Reco_mu_MVAIsoWP85[Max_mu_size];
+  Short_t Reco_mu_MVAIsoWP80[Max_mu_size];
 
   int Reco_mu_nPixValHits[Max_mu_size];      // Number of valid pixel hits in sta muons
   int Reco_mu_nMuValHits[Max_mu_size];       // Number of valid muon hits in sta muons
@@ -436,7 +466,7 @@ private:
   float Reco_mu_pTrue[Max_mu_size];  // P of the associated generated muon, used to match the Reco_mu with the Gen_mu
   float Reco_mu_validFraction[Max_mu_size];
   float Reco_mu_iso[Max_mu_size];
-  int Reco_mu_simExtType[Max_Bc_size];  //
+  int Reco_mu_simExtType[Max_mu_size];  //
 
   Short_t muType;  // type of muon (GlbTrk=0, Trk=1, Glb=2, none=-1)
   std::vector<float>
@@ -457,6 +487,11 @@ private:
   int Reco_trk_originalAlgo[Max_trk_size];
   int Reco_trk_nPixWMea[Max_trk_size];
   int Reco_trk_nTrkWMea[Max_trk_size];
+
+  Short_t Reco_trk2_size;
+  std::vector<float> Reco_trk2_pt;
+  std::vector<float> Reco_trk2_eta;
+  std::vector<float> Reco_trk2_phi;
 
   // histos
   TH1F* hGoodMuonsNoTrig = nullptr;
@@ -494,6 +529,8 @@ private:
       SumET_HFhitMinus, SumET_EB, SumET_ET, SumET_EE, SumET_EEplus, SumET_EEminus, SumET_ZDC, SumET_ZDCplus,
       SumET_ZDCminus;
 
+  std::map<std::string, int> Ntrack_details;
+
   // Event Plane variables
   int nEP;  // number of event planes
   //float *hiEvtPlane;
@@ -517,6 +554,7 @@ private:
   edm::Handle<GenEventInfoProduct> genInfo;
 
   edm::Handle<edm::TriggerResults> collTriggerResults;
+  const edm::Event* currentEvent = nullptr;
 
   // data members
   edm::EDGetTokenT<pat::MuonCollection> _patMuonToken;
@@ -530,6 +568,7 @@ private:
   edm::EDGetTokenT<reco::VertexCollection> _thePVsToken;
   edm::EDGetTokenT<reco::VertexCollection> _SVToken;
   edm::EDGetTokenT<edm::TriggerResults> _tagTriggerResultsToken;
+  edm::EDGetTokenT<pat::METCollection> _metToken;
   edm::EDGetTokenT<reco::Centrality> _centralityTagToken;
   edm::EDGetTokenT<int> _centralityBinTagToken;
   edm::EDGetTokenT<reco::EvtPlaneCollection> _evtPlaneTagToken;
@@ -562,6 +601,7 @@ private:
   bool _fillRooDataSet;
   bool _fillTree;
   bool _fillHistos;
+  bool _doMet;
   bool _theMinimumFlag;
   bool _fillSingleMuons;
   bool _onlySingleMuons;
@@ -578,13 +618,32 @@ private:
   bool _genealogyInfo;
   bool _miniAODcut;
 
+  bool _useDetailEventInfo;
+  std::vector<double> _ptTrkDetail;
+  std::vector<double> _absEtaTrkDetail;
+  bool _storeTwoParticleFlowQVec;
+  double _twoParticleFlowQVecPtMin;
+  double _twoParticleFlowQVecPtMax;
+  double _twoParticleFlowQVecAbsEtaMax;
+  double _twoParticleFlowQVecOccupancy;
+  std::string _twoParticleFlowQVecCorrFile;
+  TH3F* _twoParticleFlowQVecEffHisto = nullptr;
+  TH3F* _twoParticleFlowQVecFakeHisto = nullptr;
+  TH3F* _twoParticleFlowQVecSecHisto = nullptr;
+  TH3F* _twoParticleFlowQVecMulHisto = nullptr;
+
+  bool _storeUniquePV;
+  double _maxAbsVz;
+
   int _oniaPDG;
+  std::vector<int> _oniaPDGs;
   int _BcPDG;
   int _OneMatchedHLTMu;
   bool _checkTrigNames;
 
   std::vector<unsigned int> _thePassedCats;
   std::vector<const pat::CompositeCandidate*> _thePassedCands;
+  std::vector<int> _thePassedCollIdxs;
   std::vector<unsigned int> _thePassedBcCats;
   std::vector<const pat::CompositeCandidate*> _thePassedBcCands;
 
@@ -595,7 +654,7 @@ private:
   unsigned int passedCandidates;
 
   unsigned int runNb;
-  unsigned int eventNb;
+  ULong64_t eventNb;
   unsigned int lumiSection;
 
   // limits
@@ -614,6 +673,17 @@ private:
   float RefVtx_zError;
   float zVtx;
   Short_t nPV;
+
+  float met_pt;
+  float met_phi;
+  float met_sumEt;
+  float met_significance;
+
+  Short_t nUniquePV;
+  static const int Max_PV_size = 200;
+  float UniquePV_x[Max_PV_size];
+  float UniquePV_y[Max_PV_size];
+  float UniquePV_z[Max_PV_size];
 
   // Trigger stuff
   // PUT HERE THE *LAST FILTERS* OF THE BITS YOU LIKE

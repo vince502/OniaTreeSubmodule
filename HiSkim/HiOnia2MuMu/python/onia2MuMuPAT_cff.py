@@ -212,6 +212,12 @@ def changeToMiniAOD(process, addIsolation=False):
             process.outOnia2MuMu.outputCommands.append('keep patMuons_unpackedMuonsWithGenMatch_*_*')
             process.outOnia2MuMu.outputCommands.append('drop patMuons_unpackedMuons_*_*')
 
+        if hasattr(process, "hionia"):
+            process.hionia.primaryVertexTag = cms.InputTag("unpackedTracksAndVertices")
+            process.hionia.srcTracks = cms.InputTag("unpackedTracksAndVertices")
+            process.hionia.srcMuonNoTrig = cms.InputTag("unpackedMuons")
+            process.hionia.genParticles = cms.InputTag("prunedGenParticles")
+
 
     from HLTrigger.Configuration.CustomConfigs import massReplaceInputTag
     process = massReplaceInputTag(process,"offlinePrimaryVertices","unpackedTracksAndVertices")
