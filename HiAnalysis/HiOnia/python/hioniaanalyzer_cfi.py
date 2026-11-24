@@ -42,6 +42,8 @@ hionia = cms.EDAnalyzer('HiOniaAnalyzer',
                         doTrimuons = cms.bool(False),
                         flipJpsiDirection = cms.int32(0),
                         genealogyInfo = cms.bool(False),
+                        doMet = cms.bool(False),
+                        metInputTag = cms.InputTag("slimmedMETs"),
                         miniAODcut = cms.bool(False),
                         removeSignalEvents = cms.untracked.bool(False),
                         removeTrueMuons = cms.untracked.bool(False),
@@ -53,6 +55,7 @@ hionia = cms.EDAnalyzer('HiOniaAnalyzer',
                         #-- Gen Details
                         BcPDG = cms.int32(541),
                         oniaPDG = cms.int32(443),
+                        oniaPDGs = cms.vint32(),
                         muonSel = cms.string("GlbGlb"),
                         isHI = cms.untracked.bool(True),
                         isPA = cms.untracked.bool(False),
@@ -61,6 +64,21 @@ hionia = cms.EDAnalyzer('HiOniaAnalyzer',
                         useEvtPlane = cms.untracked.bool(False),
                         useGeTracks = cms.untracked.bool(False),
                         genOnly     = cms.bool(False),  # fill only generated info
+
+                        #-- Detailed event track counts and two-particle flow Q-vectors
+                        useDetailEventInfo = cms.bool(False),
+                        ptTrkDetail = cms.vdouble(0.5, 1.0, 2.0),
+                        absEtaTrkDetail = cms.vdouble(1.0, 2.0, 2.4),
+                        storeTwoParticleFlowQVec = cms.bool(False),
+                        twoParticleFlowQVecPtMin = cms.double(0.4),
+                        twoParticleFlowQVecPtMax = cms.double(3.0),
+                        twoParticleFlowQVecAbsEtaMax = cms.double(2.4),
+                        twoParticleFlowQVecOccupancy = cms.double(100.0),
+                        twoParticleFlowQVecCorrFile = cms.string(""),
+
+                        #-- Optional storage of unique good primary vertices
+                        storeUniquePV = cms.bool(False),
+                        maxAbsVz = cms.double(15.0),
 
                         #-- Histogram configuration
                         combineCategories = cms.bool(False),
