@@ -60,6 +60,11 @@ void HiOniaAnalyzer::fillGenInfo() {
       const reco::GenParticle* gen = &(*it);
 
       if (abs(gen->pdgId()) == 13 && (gen->status() == 1)) {
+        if (Gen_mu_size >= Max_mu_size) {
+          std::cout << "Too many muons: " << Gen_mu_size << std::endl;
+          std::cout << "Maximum allowed: " << Max_mu_size << std::endl;
+          break;
+        }
         Gen_mu_type[Gen_mu_size] = _isPromptMC ? 0 : 1;  // prompt: 0, non-prompt: 1
         Gen_mu_charge[Gen_mu_size] = gen->charge();
 
@@ -90,6 +95,11 @@ void HiOniaAnalyzer::fillGenInfo() {
 
         if (abs(genMuon1->pdgId()) == 13 && abs(genMuon2->pdgId()) == 13 && (genMuon1->status() == 1) &&
             (genMuon2->status() == 1)) {
+          if (Gen_QQ_size >= Max_QQ_size) {
+            std::cout << "Too many dimuons: " << Gen_QQ_size << std::endl;
+            std::cout << "Maximum allowed: " << Max_QQ_size << std::endl;
+            break;
+          }
           Gen_QQ_Bc_idx[Gen_QQ_size] = -1;
           Gen_QQ_type[Gen_QQ_size] = _isPromptMC ? 0 : 1;  // prompt: 0, non-prompt: 1
           Gen_QQ_pdgId[Gen_QQ_size] = gen->pdgId();
@@ -155,31 +165,36 @@ void HiOniaAnalyzer::fillGenInfo() {
 
                 //Fill info for Bc and its mu,nu daughters
                 if (goodDaughters && (genmuW->charge() == genBc->charge()) && (genmuW->status() == 1)) {
-                  Gen_QQ_Bc_idx[Gen_QQ_size] = Gen_Bc_size;
-                  Gen_Bc_QQ_idx[Gen_Bc_size] = Gen_QQ_size;
+                  const int muW_idx = IndexOfThisMuon(genmuW->pt(), true);
+                  if (Gen_Bc_size >= Max_Bc_size) {
+                    std::cout << "Too many Bc's: " << Gen_Bc_size << std::endl;
+                    std::cout << "Maximum allowed: " << Max_Bc_size << std::endl;
+                  } else if (muW_idx >= 0) {
+                    Gen_QQ_Bc_idx[Gen_QQ_size] = Gen_Bc_size;
+                    Gen_Bc_QQ_idx[Gen_Bc_size] = Gen_QQ_size;
 
-                  Gen_Bc_pdgId[Gen_Bc_size] = genBc->pdgId();
-                  std::pair<int, std::pair<float, float> > MCinfo = findGenBcInfo(genBc, gen);
-                  Gen_Bc_ctau[Gen_Bc_size] = 10.0 * MCinfo.second.first;
+                    Gen_Bc_pdgId[Gen_Bc_size] = genBc->pdgId();
+                    std::pair<int, std::pair<float, float> > MCinfo = findGenBcInfo(genBc, gen);
+                    Gen_Bc_ctau[Gen_Bc_size] = 10.0 * MCinfo.second.first;
 
-                  TLorentzVector vBc = lorentzMomentum(genBc->p4());
-                  new ((*Gen_Bc_4mom)[Gen_Bc_size]) TLorentzVector(vBc);
-                  Gen_Bc_4mom_pt.push_back(vBc.Pt());
-                  Gen_Bc_4mom_eta.push_back(vBc.Eta());
-                  Gen_Bc_4mom_phi.push_back(vBc.Phi());
-                  Gen_Bc_4mom_m.push_back(vBc.M());
+                    TLorentzVector vBc = lorentzMomentum(genBc->p4());
+                    new ((*Gen_Bc_4mom)[Gen_Bc_size]) TLorentzVector(vBc);
+                    Gen_Bc_4mom_pt.push_back(vBc.Pt());
+                    Gen_Bc_4mom_eta.push_back(vBc.Eta());
+                    Gen_Bc_4mom_phi.push_back(vBc.Phi());
+                    Gen_Bc_4mom_m.push_back(vBc.M());
 
-                  //TLorentzVector vmuW = lorentzMomentum(genmuW->p4());
-                  Gen_Bc_muW_idx[Gen_Bc_size] = IndexOfThisMuon(genmuW->pt(), true);
+                    Gen_Bc_muW_idx[Gen_Bc_size] = muW_idx;
 
-                  TLorentzVector vnuW = lorentzMomentum(gennuW->p4());
-                  new ((*Gen_Bc_nuW_4mom)[Gen_Bc_size]) TLorentzVector(vnuW);
-                  Gen_Bc_nuW_4mom_pt.push_back(vnuW.Pt());
-                  Gen_Bc_nuW_4mom_eta.push_back(vnuW.Eta());
-                  Gen_Bc_nuW_4mom_phi.push_back(vnuW.Phi());
-                  Gen_Bc_nuW_4mom_m.push_back(vnuW.M());
+                    TLorentzVector vnuW = lorentzMomentum(gennuW->p4());
+                    new ((*Gen_Bc_nuW_4mom)[Gen_Bc_size]) TLorentzVector(vnuW);
+                    Gen_Bc_nuW_4mom_pt.push_back(vnuW.Pt());
+                    Gen_Bc_nuW_4mom_eta.push_back(vnuW.Eta());
+                    Gen_Bc_nuW_4mom_phi.push_back(vnuW.Phi());
+                    Gen_Bc_nuW_4mom_m.push_back(vnuW.M());
 
-                  Gen_Bc_size++;
+                    Gen_Bc_size++;
+                  }
                 } else {
                   std::cout << "WARNING : Problem with daughters of the gen Bc, hence Bc and its daughters are not "
                                "written out"
@@ -381,10 +396,12 @@ std::pair<std::vector<reco::GenParticleRef>, std::pair<float, float> > HiOniaAna
 void HiOniaAnalyzer::fillQQMatchingInfo() {
   for (int igen = 0; igen < Gen_QQ_size; igen++) {
     Gen_QQ_whichRec[igen] = -1;
-    int Reco_mupl_idx =
-        Gen_mu_whichRec[Gen_QQ_mupl_idx[igen]];  //index of the reconstructed mupl associated to the generated mupl of Jpsi
-    int Reco_mumi_idx =
-        Gen_mu_whichRec[Gen_QQ_mumi_idx[igen]];  //index of the reconstructed mumi associated to the generated mumi of Jpsi
+    int Reco_mupl_idx = (Gen_QQ_mupl_idx[igen] >= 0)
+                            ? Gen_mu_whichRec[Gen_QQ_mupl_idx[igen]]
+                            : -1;  //index of the reconstructed mupl associated to the generated mupl of Jpsi
+    int Reco_mumi_idx = (Gen_QQ_mumi_idx[igen] >= 0)
+                            ? Gen_mu_whichRec[Gen_QQ_mumi_idx[igen]]
+                            : -1;  //index of the reconstructed mumi associated to the generated mumi of Jpsi
 
     if ((Reco_mupl_idx >= 0) && (Reco_mumi_idx >= 0)) {  //Search for Reco_QQ only if both muons are reco
       for (int irec = 0; irec < Reco_QQ_size; irec++) {

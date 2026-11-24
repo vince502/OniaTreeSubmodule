@@ -461,12 +461,19 @@ void HiOniaAnalyzer::fillBcMatchingInfo() {
     Gen_3mu_4mom_m.push_back(gen_3mu_4mom.M());
 
     //Look for index of reconstructed muon
-    int Reco_muW_idx =
-        Gen_mu_whichRec[Gen_Bc_muW_idx[igen]];  //index of the reconstructed muW associated to the generated muW of Bc
-    int Reco_mupl_idx = Gen_mu_whichRec
-        [Gen_QQ_mupl_idx[Gen_Bc_QQ_idx[igen]]];  //index of the reconstructed mupl associated to the generated mupl of Jpsi
-    int Reco_mumi_idx = Gen_mu_whichRec
-        [Gen_QQ_mumi_idx[Gen_Bc_QQ_idx[igen]]];  //index of the reconstructed mumi associated to the generated mumi of Jpsi
+    const int genQQIdx = Gen_Bc_QQ_idx[igen];
+    const int genMuWIdx = Gen_Bc_muW_idx[igen];
+    const int genMuplIdx = (genQQIdx >= 0) ? Gen_QQ_mupl_idx[genQQIdx] : -1;
+    const int genMumiIdx = (genQQIdx >= 0) ? Gen_QQ_mumi_idx[genQQIdx] : -1;
+    int Reco_muW_idx = (genMuWIdx >= 0)
+                           ? Gen_mu_whichRec[genMuWIdx]
+                           : -1;  //index of the reconstructed muW associated to the generated muW of Bc
+    int Reco_mupl_idx = (genMuplIdx >= 0)
+                            ? Gen_mu_whichRec[genMuplIdx]
+                            : -1;  //index of the reconstructed mupl associated to the generated mupl of Jpsi
+    int Reco_mumi_idx = (genMumiIdx >= 0)
+                            ? Gen_mu_whichRec[genMumiIdx]
+                            : -1;  //index of the reconstructed mumi associated to the generated mumi of Jpsi
 
     if ((Reco_mupl_idx >= 0) && (Reco_mumi_idx >= 0) &&
         (Reco_muW_idx >= 0)) {  //Search for Reco_Bc only if the three muons are reco
